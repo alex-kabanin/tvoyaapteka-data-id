@@ -3,16 +3,24 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TVOYAAPTEKA Data-ID Extractor</title>
+  <title>Data-ID Extractor</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <div class="container">
-  <h1>TVOYAAPTEKA Data-ID Extractor</h1>
-  <p>Вставь ссылки (каждая с новой строки).</p>
 
-  <textarea id="urls" placeholder="https://www.tvoyaapteka.ru/..."></textarea>
+  <h1>Data-ID Extractor</h1>
+
+  <p class="description">
+    Вставьте URL товаров — по одному на строку.
+  </p>
+
+  <textarea
+    id="urls"
+    placeholder="https://www.tvoyaapteka.ru/catalog/...
+https://www.tvoyaapteka.ru/catalog/...
+https://www.tvoyaapteka.ru/catalog/..."></textarea>
 
   <div class="buttons">
     <button id="run">Получить ID</button>
@@ -20,7 +28,15 @@
     <button id="clear">Очистить</button>
   </div>
 
+  <div id="status" class="status"></div>
+
   <pre id="output"></pre>
+
+  <details>
+    <summary>Debug / лог</summary>
+    <pre id="debug"></pre>
+  </details>
+
 </div>
 
 <script src="script.js"></script>
