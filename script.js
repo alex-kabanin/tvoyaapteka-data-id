@@ -1,118 +1,45 @@
 const urlsInput = document.getElementById("urls");
 const output = document.getElementById("output");
-const debugOutput = document.getElementById("debug");
 const status = document.getElementById("status");
+const debugOutput = document.getElementById("debug");
 
 const runButton = document.getElementById("run");
 const copyButton = document.getElementById("copy");
 const clearButton = document.getElementById("clear");
 
-
-// --------------------------------------------------
-// CORS proxy
-// --------------------------------------------------
-
-const proxies = [
-  {
-    name: "AllOrigins",
-    makeUrl: url =>
-      "https://api.allorigins.win/raw?url=" +
-      encodeURIComponent(url)
-  },
-
-  {
-    name: "CorsProxy",
-    makeUrl: url =>
-      "https://corsproxy.io/?" +
-      encodeURIComponent(url)
-  }
-];
+const PROXY = "https://api.allorigins.win/raw?url=";
 
 
-// --------------------------------------------------
-// Debug
-// --------------------------------------------------
-
-function debug(...args) {
-
+function log(...args) {
   console.log(...args);
 
-  const text = args
-    .map(x => {
-      if (typeof x === "string") return x;
-
-      try {
-        return JSON.stringify(x, null, 2);
-      } catch {
-        return String(x);
-      }
-    })
-    .join(" ");
-
-  debugOutput.textContent += text + "\n";
+  debugOutput.textContent +=
+    args.map(String).join(" ") + "\n";
 }
 
 
-// --------------------------------------------------
-// Получение HTML
-// --------------------------------------------------
+async function getDataId(url) {
 
-async function fetchHtml(url) {
+  log("URL:", url);
 
-  let lastError = null;
+  const proxyUrl =
+    PROXY + encodeURIComponent(url);
 
-  for (const proxy of proxies) {
+  log("Запрашиваем:", proxyUrl);
 
-    const proxyUrl = proxy.makeUrl(url);
+  const response = await fetch(proxyUrl);
 
-    debug(`Пробуем ${proxy.name}`);
-    debug(proxyUrl);
+  log("HTTP:", response.status);
 
-    try {
-
-      const response = await fetch(proxyUrl, {
-        method: "GET",
-        cache: "no-store"
-      });
-
-      debug(`${proxy.name}: HTTP ${response.status}`);
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const html = await response.text();
-
-      debug(`${proxy.name}: получено ${html.length} символов`);
-
-      if (!html || html.length < 100) {
-        throw new Error("HTML слишком короткий");
-      }
-
-      return {
-        html,
-        proxy: proxy.name
-      };
-
-    } catch (error) {
-
-      lastError = error;
-
-      debug(`${proxy.name}: ошибка`);
-      debug(error.message);
-    }
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
   }
 
-  throw lastError || new Error("Не удалось получить HTML");
-}
+  const html = await response.text();
 
+  log("HTML:", html.length, "символов");
 
-// --------------------------------------------------
-// Извлечение data-id
-// --------------------------------------------------
-
-function extractDataId(html) {
-
+  // Парсим полученный HTML
   const parser = new DOMParser();
 
   const doc = parser.parseFromString(
@@ -120,36 +47,28 @@ function extractDataId(html) {
     "text/html"
   );
 
+  // Ищем нужный элемент
   const element = doc.querySelector(
     ".product-detailed__info-block"
   );
 
+  console.log("НАЙДЕННЫЙ ELEMENT:", element);
+
   if (!element) {
 
-    debug(
-      "Элемент .product-detailed__info-block НЕ найден"
-    );
+    log("❌ .product-detailed__info-block НЕ НАЙДЕН");
 
-    // Дополнительный поиск для диагностики
-    const possibleElements =
-      doc.querySelectorAll("[data-id]");
+    // Для диагностики
+    const all = doc.querySelectorAll("[data-id]");
 
-    debug(
-      `Элементов с data-id вообще найдено: ${possibleElements.length}`
-    );
+    log("Всего [data-id]:", all.length);
 
-    if (possibleElements.length > 0) {
-
-      for (const el of possibleElements) {
-
-        debug({
-          tag: el.tagName,
-          class: el.className,
-          dataId: el.getAttribute("data-id")
-        });
-
-      }
-    }
+    all.forEach(el => {
+      console.log(
+        "data-id element:",
+        el
+      );
+    });
 
     return null;
   }
@@ -157,132 +76,76 @@ function extractDataId(html) {
   const dataId =
     element.getAttribute("data-id");
 
-  debug("Найден элемент:");
-  debug(element.outerHTML.slice(0, 1000));
-
-  debug(`data-id = ${dataId}`);
+  log("✅ DATA-ID:", dataId);
 
   return dataId;
 }
 
 
-// --------------------------------------------------
-// Обработка одного URL
-// --------------------------------------------------
-
-async function processUrl(url, index, total) {
-
-  status.textContent =
-    `Обработка ${index} / ${total}`;
-
-  debug("");
-  debug("========================================");
-  debug(`URL ${index}/${total}`);
-  debug(url);
-  debug("========================================");
-
-  try {
-
-    const result = await fetchHtml(url);
-
-    debug(`Использован прокси: ${result.proxy}`);
-
-    const dataId =
-      extractDataId(result.html);
-
-    if (!dataId) {
-
-      debug("RESULT: NOT_FOUND");
-
-      return "[NOT_FOUND]";
-    }
-
-    debug(`RESULT: [${dataId}]`);
-
-    return `[${dataId}]`;
-
-  } catch (error) {
-
-    debug("RESULT: ERROR");
-    debug(error.message);
-
-    return "[ERROR]";
-  }
-}
-
-
-// --------------------------------------------------
-// Основная функция
-// --------------------------------------------------
-
 async function run() {
 
-  debugOutput.textContent = "";
   output.textContent = "";
+  debugOutput.textContent = "";
 
   const urls = urlsInput.value
     .split(/\r?\n/)
-    .map(url => url.trim())
+    .map(x => x.trim())
     .filter(Boolean);
 
-  if (urls.length === 0) {
-
-    status.textContent =
-      "Введите хотя бы один URL.";
-
+  if (!urls.length) {
+    status.textContent = "Нет URL";
     return;
   }
 
   runButton.disabled = true;
 
-  debug(`Всего URL: ${urls.length}`);
-
   const results = [];
 
   for (let i = 0; i < urls.length; i++) {
 
-    const result =
-      await processUrl(
-        urls[i],
-        i + 1,
-        urls.length
-      );
+    status.textContent =
+      `Обработка ${i + 1} / ${urls.length}`;
 
-    results.push(result);
+    try {
 
-    // Показываем результат сразу,
-    // не дожидаясь окончания всего списка
+      const id = await getDataId(urls[i]);
+
+      if (id) {
+        results.push(`[${id}]`);
+      } else {
+        results.push("[NOT_FOUND]");
+      }
+
+    } catch (error) {
+
+      console.error(error);
+
+      log("❌ ERROR:", error.message);
+
+      results.push("[ERROR]");
+    }
+
+    // Показываем результат сразу
     output.textContent =
       results.join("\n");
   }
 
   status.textContent =
-    `Готово. Обработано: ${urls.length}`;
+    `Готово: ${urls.length} URL`;
 
   runButton.disabled = false;
 }
 
 
-// --------------------------------------------------
-// Copy
-// --------------------------------------------------
-
 copyButton.onclick = async () => {
 
-  const text = output.textContent;
+  await navigator.clipboard.writeText(
+    output.textContent
+  );
 
-  if (!text) return;
-
-  await navigator.clipboard.writeText(text);
-
-  status.textContent =
-    "Результат скопирован.";
+  status.textContent = "Скопировано!";
 };
 
-
-// --------------------------------------------------
-// Clear
-// --------------------------------------------------
 
 clearButton.onclick = () => {
 
@@ -292,9 +155,5 @@ clearButton.onclick = () => {
   status.textContent = "";
 };
 
-
-// --------------------------------------------------
-// Run
-// --------------------------------------------------
 
 runButton.onclick = run;
